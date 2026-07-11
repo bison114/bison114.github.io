@@ -1,156 +1,226 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>贪吃蛇小游戏</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: "Microsoft YaHei", sans-serif;
-        }
-        body {
-            background: #2c303a;
-            color: #fff;
-            text-align: center;
-            padding: 30px 10px;
-        }
-        .tip {
-            font-size: 18px;
-            margin-bottom: 12px;
-            color: #b0b8c4;
-        }
-        canvas {
-            background: #000;
-            border: 3px solid #2196F3;
-        }
-        .score {
-            margin: 15px 0;
-            font-size: 22px;
-        }
-        .back-btn {
-            display: inline-block;
-            margin-top: 20px;
-            padding: 10px 24px;
-            background: #2196F3;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: 0.2s;
-        }
-        .back-btn:hover {
-            background: #0b7dda;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2048数字拼图</title>
+<style>
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Microsoft YaHei",sans-serif;
+}
+body{
+    background-color: #2c303a;
+    color: #fff;
+    text-align: center;
+    padding: 30px 10px;
+}
+.tip{
+    font-size: 18px;
+    color: #b0b8c4;
+    margin-bottom: 10px;
+}
+.score-box{
+    font-size: 22px;
+    margin: 15px 0;
+}
+#gameBox{
+    width: 400px;
+    height: 400px;
+    margin: 0 auto;
+    background-color: #bbada0;
+    border: 3px solid #2196F3;
+    border-radius: 8px;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+.cell{
+    background-color: #cdc1b4;
+    border-radius: 6px;
+    font-size: 32px;
+    font-weight: bold;
+    display: grid;
+    place-items: center;
+}
+.back-btn{
+    display: inline-block;
+    margin-top: 24px;
+    padding: 10px 26px;
+    background: #2196F3;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 16px;
+}
+.back-btn:hover{
+    background: #0b7dda;
+}
+.game-over{
+    margin-top: 15px;
+    font-size: 20px;
+    color: #ff6666;
+}
+</style>
 </head>
 <body>
-    <div class="tip">方向键 ↑ ↓ ← → 控制蛇移动，吃到食物加分，撞墙/撞自身游戏结束</div>
-    <div class="score">当前分数：<span id="scoreNum">0</span></div>
-    <canvas id="snakeCanvas" width="400" height="400"></canvas>
-    <br>
-    <a href="../" class="back-btn">返回游戏大厅</a>
+<div class="tip">方向键 ↑ ↓ ← → 滑动数字，相同数字合并，合成2048获胜</div>
+<div class="score-box">当前分数：<span id="score">0</span></div>
+<div id="gameBox"></div>
+<div class="game-over" id="gameTip"></div>
+<br>
+<a href="../" class="back-btn">返回游戏大厅</a>
 
-    <script>
-        const canvas = document.getElementById("snakeCanvas");
-        const ctx = canvas.getContext("2d");
-        const scoreText = document.getElementById("scoreNum");
-        const size = 20; // 格子尺寸
-        const count = canvas.width / size;
+<script>
+const gameBox = document.getElementById("gameBox");
+const scoreDom = document.getElementById("score");
+const tipDom = document.getElementById("gameTip");
+let grid = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+let score = 0;
+let gameOver = false;
 
-        // 蛇基础数据
-        let snake = [
-            { x: 10, y: 10 }
-        ];
-        let dx = 1, dy = 0;
-        let food = {};
-        let score = 0;
-        let gameOver = false;
-        let timer = null;
+// 格子配色
+const colorMap = {
+    0:["#cdc1b4","#cdc1b4"],
+    2:["#eee4da","#776e65"],
+    4:["#ede0c8","#776e65"],
+    8:["#f2b179","#fff"],
+    16:["#f59563","#fff"],
+    32:["#f67c5f","#fff"],
+    64:["#f65e3b","#fff"],
+    128:["#edcf72","#fff"],
+    256:["#edcc61","#fff"],
+    512:["#edc850","#fff"],
+    1024:["#edc53f","#fff"],
+    2048:["#edc22e","#fff"]
+};
 
-        // 随机生成食物
-        function createFood() {
-            return {
-                x: Math.floor(Math.random() * count),
-                y: Math.floor(Math.random() * count)
-            };
+// 随机生成2/4
+function randomAdd(){
+    let empty = [];
+    for(let y=0;y<4;y++){
+        for(let x=0;x<4;x++){
+            if(grid[y][x]===0) empty.push([x,y]);
         }
-        food = createFood();
+    }
+    if(empty.length===0) return;
+    let [x,y] = empty[Math.floor(Math.random()*empty.length)];
+    grid[y][x] = Math.random()>0.7 ? 4 : 2;
+}
 
-        // 绘制方块
-        function drawRect(x, y, color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(x * size, y * size, size - 1, size - 1);
+// 渲染棋盘
+function render(){
+    gameBox.innerHTML = "";
+    for(let y=0;y<4;y++){
+        for(let x=0;x<4;x++){
+            let val = grid[y][x];
+            let cell = document.createElement("div");
+            cell.className = "cell";
+            cell.textContent = val===0 ? "" : val;
+            cell.style.background = colorMap[val][0];
+            cell.style.color = colorMap[val][1];
+            gameBox.appendChild(cell);
         }
+    }
+    scoreDom.innerText = score;
+    checkWin();
+    checkLose();
+}
 
-        // 游戏更新逻辑
-        function update() {
-            if (gameOver) return;
-            // 新头部
-            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
-            // 撞墙判定
-            if (head.x < 0 || head.x >= count || head.y < 0 || head.y >= count) {
-                gameOver = true;
-                alert("游戏结束！得分：" + score + "\n刷新页面重新开始");
-                return;
-            }
-            // 撞到自己
-            for (let seg of snake) {
-                if (seg.x === head.x && seg.y === head.y) {
-                    gameOver = true;
-                    alert("游戏结束！得分：" + score + "\n刷新页面重新开始");
-                    return;
-                }
-            }
-            snake.unshift(head);
-            // 吃到食物
-            if (head.x === food.x && head.y === food.y) {
-                score += 10;
-                scoreText.innerText = score;
-                food = createFood();
-            } else {
-                snake.pop();
-            }
+// 左移合并单行
+function slideRow(row){
+    let arr = row.filter(v=>v!==0);
+    for(let i=0;i<arr.length-1;i++){
+        if(arr[i]===arr[i+1]){
+            arr[i] *= 2;
+            score += arr[i];
+            arr.splice(i+1,1);
         }
+    }
+    while(arr.length<4) arr.push(0);
+    return arr;
+}
 
-        // 渲染画面
-        function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // 食物红色
-            drawRect(food.x, food.y, "#ff3333");
-            // 蛇身体绿色，头部深绿
-            for (let i = 0; i < snake.length; i++) {
-                drawRect(snake[i].x, snake[i].y, i === 0 ? "#00cc44" : "#33dd66");
-            }
+// 左右上下移动
+function moveLeft(){
+    for(let y=0;y<4;y++) grid[y] = slideRow(grid[y]);
+}
+function moveRight(){
+    for(let y=0;y<4;y++) grid[y] = slideRow(grid[y].reverse()).reverse();
+}
+function moveUp(){
+    for(let x=0;x<4;x++){
+        let col = [grid[0][x],grid[1][x],grid[2][x],grid[3][x]];
+        col = slideRow(col);
+        for(let y=0;y<4;y++) grid[y][x] = col[y];
+    }
+}
+function moveDown(){
+    for(let x=0;x<4;x++){
+        let col = [grid[0][x],grid[1][x],grid[2][x],grid[3][x]];
+        col = slideRow(col.reverse()).reverse();
+        for(let y=0;y<4;y++) grid[y][x] = col[y];
+    }
+}
+
+// 判断是否有可移动空间
+function canMove(){
+    for(let y=0;y<4;y++){
+        for(let x=0;x<4;x++){
+            let cur = grid[y][x];
+            if(cur===0) return true;
+            if(x<3 && grid[y][x+1]===cur) return true;
+            if(y<3 && grid[y+1][x]===cur) return true;
         }
+    }
+    return false;
+}
 
-        // 游戏循环
-        function loop() {
-            update();
-            render();
+// 判断胜利
+function checkWin(){
+    for(let y=0;y<4;y++){
+        if(grid[y].includes(2048)){
+            tipDom.innerText = "恭喜！合成2048，游戏胜利！刷新重开";
+            gameOver = true;
+            return;
         }
-        timer = setInterval(loop, 120);
+    }
+    tipDom.innerText = "";
+}
 
-        // 键盘控制
-        window.addEventListener("keydown", e => {
-            if (gameOver) return;
-            switch (e.key) {
-                case "ArrowUp":
-                    if (dy !== 1) { dx = 0; dy = -1; }
-                    break;
-                case "ArrowDown":
-                    if (dy !== -1) { dx = 0; dy = 1; }
-                    break;
-                case "ArrowLeft":
-                    if (dx !== 1) { dx = -1; dy = 0; }
-                    break;
-                case "ArrowRight":
-                    if (dx !== -1) { dx = 1; dy = 0; }
-                    break;
-            }
-        });
-    </script>
+// 判断失败
+function checkLose(){
+    if(!canMove()){
+        tipDom.innerText = "棋盘已满无法移动，游戏结束！刷新重开";
+        gameOver = true;
+    }
+}
+
+// 键盘控制
+window.addEventListener("keydown",e=>{
+    if(gameOver) return;
+    let old = JSON.parse(JSON.stringify(grid));
+    switch(e.key){
+        case "ArrowLeft": moveLeft(); break;
+        case "ArrowRight": moveRight(); break;
+        case "ArrowUp": moveUp(); break;
+        case "ArrowDown": moveDown(); break;
+        default: return;
+    }
+    // 发生移动才新增数字
+    if(JSON.stringify(old)!==JSON.stringify(grid)){
+        randomAdd();
+        render();
+    }
+});
+
+// 初始化
+randomAdd();
+randomAdd();
+render();
+</script>
 </body>
 </html>
