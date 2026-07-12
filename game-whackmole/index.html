@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>打地鼠小游戏</title>
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:"Microsoft YaHei",sans-serif;
+}
+body{
+    background:#2c303a;
+    color:#fff;
+    text-align:center;
+    padding:30px 10px;
+}
+.tip{
+    font-size:18px;
+    color:#b0b8c4;
+    margin-bottom:12px;
+}
+.info-bar{
+    display:flex;
+    justify-content:center;
+    gap:40px;
+    font-size:22px;
+    margin-bottom:20px;
+}
+.board{
+    width:360px;
+    height:360px;
+    margin:0 auto 25px;
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+    background:#111;
+    padding:10px;
+    border:3px solid #2196F3;
+    border-radius:8px;
+}
+.hole{
+    background:#333;
+    border-radius:6px;
+    position:relative;
+    overflow:hidden;
+}
+.mole{
+    width:100%;
+    height:100%;
+    background:#fff;
+    position:absolute;
+    top:100%;
+    transition:top 0.12s ease;
+    cursor:pointer;
+}
+.mole.show{
+    top:0;
+}
+button{
+    padding:10px 26px;
+    font-size:16px;
+    background:#2196F3;
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    margin:0 8px;
+}
+button:hover{
+    background:#0b7dda;
+}
+.back-btn{
+    display:inline-block;
+    margin-top:30px;
+    padding:10px 24px;
+    background:#2196F3;
+    color:#fff;
+    text-decoration:none;
+    border-radius:8px;
+    font-size:16px;
+}
+.back-btn:hover{
+    background:#0b7dda;
+}
+/* 结算结束页面 */
+.end-page{
+    display:none;
+    margin-top:30px;
+}
+.end-page h2{
+    font-size:48px;
+    color:#4cd964;
+    margin-bottom:20px;
+}
+.final-score{
+    font-size:28px;
+    margin-bottom:25px;
+}
+.rank-title{
+    font-size:24px;
+    margin:30px 0 15px;
+}
+.rank-list{
+    width:300px;
+    margin:0 auto;
+    font-size:20px;
+    text-align:left;
+    padding-left:80px;
+}
+.rank-item{
+    margin:8px 0;
+}
+</style>
+</head>
+<body>
+<div class="tip">点击白色方块得分，限时60秒，每击中+100分</div>
+<div class="info-bar">
+    <div>得分：<span id="score">0</span></div>
+    <div>剩余时间：<span id="time">60</span>s</div>
+</div>
+<div class="board" id="gameBoard"></div>
+
+<!-- 结束结算页面 -->
+<div class="end-page" id="endPage">
+    <h2>TIME UP！游戏结束</h2>
+    <div class="final-score">本局得分：<span id="finalScore">0</span></div>
+    <button id="restartBtn">重新开局</button>
+    <a href="../" class="back-btn">返回大厅</a>
+    <div class="rank-title">历史排行榜(前5)</div>
+    <div class="rank-list" id="rankList"></div>
+</div>
+
+<br>
+<a href="../" class="back-btn" id="gameBackBtn">返回游戏大厅</a>
+
+<script>
+const GAME_TIME = 60;
+const SCORE_PER_HIT = 100;
+const HOLE_COUNT = 9;
+const STORAGE_KEY = "whackMoleRank";
+
+// DOM元素
+const gameBoard = document.getElementById("gameBoard");
+const scoreDom = document.getElementById("score");
+const timeDom = document.getElementById("time");
+const endPage = document.getElementById("endPage");
+const finalScoreDom = document.getElementById("finalScore");
+const rankListDom = document.getElementById("rankList");
+const restartBtn = document.getElementById("restartBtn");
+const gameBackBtn = document.getElementById("gameBackBtn");
+
+// 游戏全局变量
+let score = 0;
+let timeLeft = GAME_TIME;
+let gameRunning = false;
+let gameTimer = null;
+let moleSpawnTimer = null;
+let holeList = [];
+
+// 初始化9个洞口方块
+function initBoard(){
+    gameBoard.innerHTML = "";
+    holeList = [];
+    for(let i=0;i<HOLE_COUNT;i++){
+        const hole = document.createElement("div");
+        hole.className = "hole";
+        const mole = document.createElement("div");
+        mole.className = "mole";
+        mole.dataset.index = i;
+        // 点击得分
+        mole.addEventListener("click", hitMole);
+        hole.appendChild(mole);
+        gameBoard.appendChild(hole);
+        holeList.push(mole);
+    }
+}
+
+// 击中地鼠加分
+function hitMole(e){
+    if(!gameRunning) return;
+    const mole = e.target;
+    if(!mole.classList.contains("show")) return;
+    score += SCORE_PER_HIT;
+    scoreDom.textContent = score;
+    mole.classList.remove("show");
+}
+
+// 随机洞口生成地鼠
+function spawnMole(){
+    if(!gameRunning) return;
+    // 先隐藏所有
+    holeList.forEach(m=>m.classList.remove("show"));
+    // 随机一个洞口
+    const randomIdx = Math.floor(Math.random() * HOLE_COUNT);
+    holeList[randomIdx].classList.add("show");
+    // 地鼠停留时间，随剩余时间变短而加快
+    const stayTime = 600 + timeLeft * 12;
+    setTimeout(()=>{
+        holeList[randomIdx].classList.remove("show");
+    }, stayTime);
+}
+
+// 倒计时主循环
+function startCountDown(){
+    gameTimer = setInterval(()=>{
+        timeLeft--;
+        timeDom.textContent = timeLeft;
+        if(timeLeft <= 0){
+            gameOver();
+        }
+    }, 1000);
+}
+
+// 开始生成地鼠循环
+function startMoleLoop(){
+    moleSpawnTimer = setInterval(spawnMole, 900);
+}
+
+// 游戏结束逻辑
+function gameOver(){
+    gameRunning = false;
+    clearInterval(gameTimer);
+    clearInterval(moleSpawnTimer);
+    holeList.forEach(m=>m.classList.remove("show"));
+    // 保存分数到排行榜
+    saveScoreToRank(score);
+    // 切换结算页面
+    finalScoreDom.textContent = score;
+    endPage.style.display = "block";
+    gameBoard.style.display = "none";
+    gameBackBtn.style.display = "none";
+    renderRank();
+}
+
+// 读取排行榜数组
+function getRankData(){
+    const str = localStorage.getItem(STORAGE_KEY);
+    return str ? JSON.parse(str) : [];
+}
+
+// 保存新分数，只保留前5名
+function saveScoreToRank(newScore){
+    let rankArr = getRankData();
+    rankArr.push(newScore);
+    // 降序排序，截取前5
+    rankArr.sort((a,b)=>b - a);
+    rankArr = rankArr.slice(0,5);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rankArr));
+}
+
+// 渲染排行榜列表
+function renderRank(){
+    const arr = getRankData();
+    rankListDom.innerHTML = "";
+    if(arr.length === 0){
+        rankListDom.innerHTML = "<div class='rank-item'>暂无记录</div>";
+        return;
+    }
+    arr.forEach((s,idx)=>{
+        const item = document.createElement("div");
+        item.className = "rank-item";
+        item.textContent = `第${idx+1}名：${s} 分`;
+        rankListDom.appendChild(item);
+    });
+}
+
+// 重置游戏开局
+function restartGame(){
+    score = 0;
+    timeLeft = GAME_TIME;
+    scoreDom.textContent = score;
+    timeDom.textContent = timeLeft;
+    endPage.style.display = "none";
+    gameBoard.style.display = "grid";
+    gameBackBtn.style.display = "inline-block";
+    initBoard();
+    gameRunning = true;
+    startCountDown();
+    startMoleLoop();
+}
+
+restartBtn.addEventListener("click", restartGame);
+window.onload = ()=>{
+    initBoard();
+    restartGame();
+};
+</script>
+</body>
+</html>
