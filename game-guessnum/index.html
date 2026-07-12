@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>猜数字小游戏</title>
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:"Microsoft YaHei",sans-serif;
+}
+body{
+    background:#2c303a;
+    color:#fff;
+    text-align:center;
+    padding:40px 15px;
+}
+.container{
+    max-width:500px;
+    margin:0 auto;
+}
+h1{
+    font-size:36px;
+    margin-bottom:20px;
+}
+.tip-text{
+    font-size:18px;
+    color:#b0b8c4;
+    margin-bottom:10px;
+    line-height:1.6;
+}
+.range-text{
+    font-size:20px;
+    color:#4cd964;
+    margin-bottom:25px;
+    font-weight:bold;
+}
+.input-box{
+    margin:20px 0;
+}
+input{
+    width:70%;
+    padding:12px 16px;
+    font-size:18px;
+    border:none;
+    border-radius:8px;
+    outline:none;
+}
+button{
+    margin-top:15px;
+    padding:12px 30px;
+    font-size:18px;
+    background:#2196F3;
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    transition:0.2s;
+}
+button:hover{
+    background:#0b7dda;
+}
+#hint{
+    font-size:22px;
+    margin:25px 0;
+    min-height:30px;
+}
+.back-btn{
+    display:inline-block;
+    margin-top:40px;
+    padding:10px 24px;
+    background:#2196F3;
+    color:#fff;
+    text-decoration:none;
+    border-radius:8px;
+    font-size:16px;
+}
+.back-btn:hover{
+    background:#0b7dda;
+}
+.victory-page{
+    display:none;
+}
+.victory-page h2{
+    font-size:60px;
+    color:#4cd964;
+    letter-spacing:6px;
+    margin:40px 0;
+}
+.score-text{
+    font-size:26px;
+    margin-bottom:30px;
+}
+.restart-btn{
+    margin-right:15px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <!-- 游戏主界面 -->
+    <div id="gamePage">
+        <h1>猜数字游戏</h1>
+        <p class="tip-text">先输入自定义数字范围，输入猜测数字，系统提示偏大/偏小</p>
+        <p class="range-text" id="currentRange">当前候选区间：--</p>
+        <div class="input-box">
+            <input type="number" id="guessInput" placeholder="输入你猜测的数字">
+        </div>
+        <button id="submitBtn">提交猜测</button>
+        <div id="hint"></div>
+    </div>
+
+    <!-- 胜利结算页面 -->
+    <div class="victory-page" id="victoryPage">
+        <h2>VICTORY</h2>
+        <p class="score-text">总猜测次数：<span id="scoreNum">0</span></p>
+        <button class="restart-btn" id="restartBtn">重新开局</button>
+        <a href="../" class="back-btn">返回游戏大厅</a>
+    </div>
+
+    <br>
+    <a href="../" class="back-btn">返回游戏大厅</a>
+</div>
+
+<script>
+// 全局游戏数据
+let originMin, originMax, targetNum, guessCount;
+let nowMin, nowMax; // 当前缩小后的区间
+const gamePage = document.getElementById("gamePage");
+const victoryPage = document.getElementById("victoryPage");
+const guessInput = document.getElementById("guessInput");
+const submitBtn = document.getElementById("submitBtn");
+const hintText = document.getElementById("hint");
+const scoreNum = document.getElementById("scoreNum");
+const restartBtn = document.getElementById("restartBtn");
+const rangeDom = document.getElementById("currentRange");
+
+// 初始化游戏，获取自定义区间
+function initGame(){
+    guessCount = 0;
+    hintText.textContent = "";
+    guessInput.value = "";
+    gamePage.style.display = "block";
+    victoryPage.style.display = "none";
+
+    // 弹窗输入最小值
+    let min = null;
+    while(true){
+        let inputMin = prompt("请输入数字范围【最小值】：");
+        if(inputMin === null){
+            alert("取消输入将返回大厅页面");
+            window.location.href = "../";
+            return;
+        }
+        min = parseInt(inputMin);
+        if(!isNaN(min)) break;
+        alert("请输入有效的整数！");
+    }
+
+    // 弹窗输入最大值
+    let max = null;
+    while(true){
+        let inputMax = prompt("请输入数字范围【最大值】，必须大于最小值"+min);
+        if(inputMax === null){
+            alert("取消输入将返回大厅页面");
+            window.location.href = "../";
+            return;
+        }
+        max = parseInt(inputMax);
+        if(!isNaN(max) && max > min) break;
+        alert("输入无效！必须是整数且大于最小值"+min);
+    }
+
+    originMin = min;
+    originMax = max;
+    // 初始化当前可猜测区间
+    nowMin = originMin;
+    nowMax = originMax;
+    // 生成区间内随机目标数字
+    targetNum = Math.floor(Math.random()*(originMax - originMin + 1)) + originMin;
+    updateRangeText();
+}
+
+// 更新页面上当前区间文字
+function updateRangeText(){
+    rangeDom.textContent = `当前候选区间：${nowMin} ~ ${nowMax}`;
+}
+
+// 提交猜测逻辑
+function submitGuess(){
+    const val = parseInt(guessInput.value.trim());
+    if(isNaN(val)){
+        hintText.textContent = "请输入合法数字！";
+        return;
+    }
+    // 超出当前缩小区间直接提示
+    if(val < nowMin || val > nowMax){
+        hintText.textContent = `无效！当前数字只在 ${nowMin} ~ ${nowMax} 之间`;
+        return;
+    }
+    guessCount++;
+    if(val > targetNum){
+        hintText.textContent = "猜大了！目标数字更小";
+        // 缩小上限
+        nowMax = val - 1;
+        updateRangeText();
+    }else if(val < targetNum){
+        hintText.textContent = "猜小了！目标数字更大";
+        // 缩小下限
+        nowMin = val + 1;
+        updateRangeText();
+    }else{
+        // 猜对，切换胜利结算页面
+        scoreNum.textContent = guessCount;
+        gamePage.style.display = "none";
+        victoryPage.style.display = "block";
+        return;
+    }
+    guessInput.value = "";
+}
+
+// 绑定按钮事件
+submitBtn.addEventListener("click", submitGuess);
+guessInput.addEventListener("keydown", e=>{
+    if(e.key === "Enter") submitGuess();
+});
+restartBtn.addEventListener("click", initGame);
+
+// 页面加载自动初始化游戏
+window.onload = initGame;
+</script>
+</body>
+</html>
